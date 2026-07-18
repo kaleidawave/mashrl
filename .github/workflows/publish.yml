@@ -1,0 +1,50 @@
+name: Build and publish libraries and assets
+
+on: [push]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v7
+    - uses: dtolnay/rust-toolchain@stable
+
+    - name: Check
+      run: cargo check
+
+    - name: Test
+      run: cargo test
+
+    - name: Lint
+      run: cargo clippy
+
+  publish-libraries:
+    needs: check
+
+    permissions: write-all
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - id: checkout
+        uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: rust-lang/crates-io-auth-action@v1
+        id: auth
+
+      - uses: kaleidawave/crates-release-gh-action@improvements
+        id: update-version
+        with:
+          crates-token: ${{ steps.auth.outputs.token }}
+          version: patch
+
+      - name: Push updated Cargo.toml
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -u
+          git commit -m "Release: ${{ steps.update-version.outputs.new-versions-description }}"
+          git push origin ${{ steps.checkout.outputs.ref }}
