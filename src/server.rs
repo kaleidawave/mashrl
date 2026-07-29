@@ -51,15 +51,21 @@ pub fn get_local_ip_config(port: u16) -> std::net::SocketAddrV4 {
 
 pub type Body<'a, S> = http::Body<std::io::Take<BufReader<&'a mut S>>>;
 
-pub fn parse_request<'a, S>(
-	stream: &'a mut S,
-	first_line: &'a mut String,
-) -> http::Request<'a, Body<'a, S>>
+// we could pass first_line so that the lifetime can use a borrowed value
+pub fn parse_request<'a, S>(stream: &'a mut S) -> http::Request<'a, Body<'a, S>>
 where
 	S: Read + Send + 'a,
 {
+	let mut first_line = String::new();
 	let mut reader = BufReader::new(stream);
-	let _out = reader.read_line(first_line);
+	let _out = reader.read_line(&mut first_line);
+
+	// while first_line.is_empty() {
+	// 	dbg!(&first_line);
+	// 	let _out = reader.read_line(&mut first_line);
+	// 	dbg!(&first_line);
+	// }
+
 	let mut headers_buf = String::new();
 
 	// TODO direct TLS handshake -> non TLS handlshake
@@ -82,9 +88,13 @@ where
 	// };
 
 	// parse response
-	let (left, right) = first_line.split_once(' ').unwrap();
+	let Some((left, right)) = first_line.split_once(' ') else {
+		panic!("{first_line:?}");
+	};
 	let method = left;
-	let (left, _protocol) = right.split_once(' ').unwrap();
+	let Some((left, _protocol)) = right.split_once(' ') else {
+		panic!("{first_line:?}");
+	};
 	let path = left;
 
 	// Not sure what the default value should be here
@@ -123,8 +133,8 @@ where
 	let reader = std::io::Read::take(reader, content_length);
 
 	http::Request {
-		method: http::Method(Cow::Borrowed(method)),
-		path: Cow::Borrowed(path),
+		method: http::Method(Cow::Owned(method.to_owned())),
+		path: Cow::Owned(path.to_owned()),
 		headers: http::Headers::from_string(headers_buf),
 		body: http::Body::new(reader),
 	}
@@ -189,9 +199,7 @@ pub fn open_http_server<RB: std::io::Read>(
 	let listener = TcpListener::bind(port).expect("could not open listener on port");
 
 	for mut stream in listener.incoming().flatten() {
-		let mut first_line = String::new();
-
-		let request = parse_request(&mut stream, &mut first_line);
+		let request = parse_request(&mut stream);
 		let mut response = callback(request);
 
 		{

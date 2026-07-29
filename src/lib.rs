@@ -71,8 +71,8 @@ pub fn make_get_request(
 	mut headers: http::Headers<'_>,
 ) -> Result<Resp<TlsStream<TcpStream>>, Box<dyn std::error::Error>> {
 	// TODO http
-	let root = root.strip_prefix("https://").unwrap_or(root);
-	headers.append("Host", root);
+	let host = root.strip_prefix("https://").unwrap_or(root);
+	headers.append("Host", host);
 	// TODO
 	// headers.append("Connection", "close");
 	let request = http::Request::new_get(path, headers);

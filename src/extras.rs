@@ -1,6 +1,6 @@
 use crate::http;
 
-pub type DynRead = Box<dyn std::io::Read>;
+pub type DynRead = Box<dyn std::io::Read + Send>;
 
 pub fn get(url: &str) -> std::io::Result<String> {
 	let url = if let Some(url) = url.strip_prefix("https://") { url } else { url };

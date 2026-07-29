@@ -1,4 +1,4 @@
-Minimal and straightforward HTTP(s) request library (with server)
+Minimal and straightforward HTTP(s) request/response library (with server)
 
 Usage:
 
