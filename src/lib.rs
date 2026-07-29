@@ -11,6 +11,8 @@ pub mod http;
 pub mod extras;
 #[cfg(feature = "server")]
 pub mod server;
+#[cfg(feature = "websockets")]
+pub mod websockets;
 
 /// Not the HTTP body (for some reason)
 fn write_method_path_and_headers<T: std::io::Read, S: std::io::Write>(
