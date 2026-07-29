@@ -1,6 +1,6 @@
 [package]
 name = "mashrl"
-version = "0.0.7"
+version = "0.0.8"
 authors = ["Ben <kaleidawave@gmail.com>"]
 edition = "2024"
 description = "Minimal and straightforward HTTP(s) request/response library (with server)"
