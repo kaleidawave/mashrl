@@ -13,6 +13,7 @@ repository = "https://github.com/kaleidawave/mashrl"
 decompress = ["dep:flate2"]
 server = []
 extras = []
+websockets = []
 
 [dependencies]
 flate2 = { version = "1.1.2", optional = true }
