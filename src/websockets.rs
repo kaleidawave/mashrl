@@ -278,7 +278,7 @@ pub fn get_accept(key: &str) -> String {
 	const MAGIC: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
 	let concat = format!("{key}{MAGIC}");
-	let hash = sha1(concat.as_bytes());
+	let hash = sha1(concat.as_bytes()).unwrap();
 	let accept = base64(hash.as_slice());
 	accept
 }
@@ -343,63 +343,50 @@ pub fn base64(input: &[u8]) -> String {
 
 // TODO Could use `Wrapping` but `rotate_left` unstable + fine for now
 // 160-bit number
-pub fn sha1(input: &[u8]) -> [u8; 20] {
+pub fn sha1(mut input: impl std::io::Read) -> std::io::Result<Box<[u8; 20]>> {
 	let mut h0: u32 = 0x67452301;
 	let mut h1: u32 = 0xEFCDAB89;
 	let mut h2: u32 = 0x98BADCFE;
 	let mut h3: u32 = 0x10325476;
 	let mut h4: u32 = 0xC3D2E1F0;
 
-	// let mut input = input.to_vec();
-	// {
-	// 	let ml: u64 = input.len() as u64 * 8;
-	// 	input.push(0b1000_0000u8);
-	// 	// this is the problem
-	// 	while input.len() % 64 != 56 {
-	// 		input.push(0);
-	// 	}
-	// 	input.extend_from_slice(&ml.to_be_bytes());
-	// 	assert_eq!(input.len() % 64, 0, "{m} {l}", m=input.len() % 64, l=input.len());
-	// }
-	// let total_length = input.len();
+	let mut total_read: usize = 0;
 
-	let mut total_length = input.len() + 1;
-	if total_length % 64 > 56 {
-		total_length += 64;
-	}
-
-	let mut i = 0;
-	while i < total_length {
+	let mut length_only_buffer = false;
+	loop {
 		let mut chunk: [u32; 80] = [0u32; 80];
 
-		// let iter = input[i..].iter().take(4 * 16);
-
-		let last = (i + 64) > total_length;
-		// technically could clone original slice and add this on, but instead
-		let iter = if let Some(slice) = input.get(i..) {
-			if slice.len() < 64 {
-				// assert!(slice.len() < 64);
-				Iterator::chain(slice.iter().take(64), &[0b1000_0000])
-			} else {
-				Iterator::chain(slice.iter().take(64), &[])
-			}
+		let last = if length_only_buffer {
+			true
 		} else {
-			// dbg!("here");
-			// A rare case
-			// assert!(last);
-			// assert!(total_length % 64 > 56, "i={i} il={il} tl={total_length}", il=input.len());
-			static EMPTY: &[u8] = &[];
-			Iterator::chain(EMPTY.iter().take(64), &[])
+			let mut inner = [0u8; 64];
+			let mut read = input.read(&mut inner)?;
+			total_read += read;
+			let last = if read < 64 {
+				inner[read] = 0b1000_0000;
+				read += 1;
+				if read > 56 {
+					length_only_buffer = true;
+					false
+				} else {
+					true
+				}
+			} else {
+				false
+			};
+
+			for (j, byte) in inner.iter().enumerate() {
+				let offset = (3 - j % 4) * 8;
+				let u32_byte = *byte as u32;
+				chunk[j / 4] |= u32_byte << offset;
+			}
+
+			last
 		};
 
-		for (j, byte) in iter.enumerate() {
-			let offset = (3 - j % 4) * 8;
-			let u32_byte = *byte as u32;
-			chunk[j / 4] |= u32_byte << offset;
-		}
-
 		if last {
-			let ml: u64 = input.len() as u64 * 8;
+			// write length
+			let ml: u64 = total_read as u64 * 8;
 			let [a, b, c, d, e, f, g, h] = ml.to_be_bytes();
 			chunk[14] = u32::from_be_bytes([a, b, c, d]);
 			chunk[15] = u32::from_be_bytes([e, f, g, h]);
@@ -445,7 +432,9 @@ pub fn sha1(input: &[u8]) -> [u8; 20] {
 		h3 = h3.wrapping_add(d);
 		h4 = h4.wrapping_add(e);
 
-		i += 64;
+		if last {
+			break;
+		}
 	}
 
 	let source: [u32; 5] = [h0, h1, h2, h3, h4];
@@ -456,5 +445,5 @@ pub fn sha1(input: &[u8]) -> [u8; 20] {
 		chunk.copy_from_slice(&hi.to_be_bytes());
 	}
 
-	out
+	Ok(Box::new(out))
 }
